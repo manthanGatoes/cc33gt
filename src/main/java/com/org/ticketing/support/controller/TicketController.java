@@ -36,4 +36,14 @@ public class TicketController {
     public List<TicketResponse> getMyTickets() {
         return ticketService.getTicketsForCustomer(getCurrentUser());
     }
+
+    @PutMapping("/{ticketId}/status")
+    public TicketResponse updateStatusOrAssignee(
+            @PathVariable Long ticketId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long assigneeId
+    ) {
+        return ticketService.updateTicketStatusAndAssignee(ticketId, status, assigneeId);
+    }
+
 }

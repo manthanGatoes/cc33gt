@@ -1,5 +1,6 @@
 package com.org.ticketing.support.service.impl;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import com.org.ticketing.support.dto.request.PostMessageRequest;
 import com.org.ticketing.support.dto.response.MessageResponse;
 import com.org.ticketing.support.mapper.MessageMapper;
@@ -21,6 +22,8 @@ public class MessageServiceImpl implements MessageService {
     private final MessageRepository messageRepository;
     private final TicketRepository ticketRepository;
     private final MessageMapper messageMapper;
+    private final SimpMessagingTemplate messagingTemplate;
+
 
     @Override
     public MessageResponse postMessage(PostMessageRequest request, User sender) {
@@ -33,7 +36,13 @@ public class MessageServiceImpl implements MessageService {
         message.setContent(request.getContent());
 
         message = messageRepository.save(message);
-        return messageMapper.toDto(message);
+        MessageResponse response = messageMapper.toDto(message);
+        messagingTemplate.convertAndSend(
+                "/topic/tickets/" + ticket.getId(),
+                response
+        );
+        return response;
+
     }
 
     @Override

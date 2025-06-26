@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ticketing WebSocket Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+</head>
+<body>
+<h2>WebSocket STOMP Test</h2>
+
+<label for="ticketId">Ticket ID:</label>
+<input type="text" id="ticketId" value="1" />
+<button onclick="connect()">Connect</button>
+
+<ul id="messages"></ul>
+
+<script>
+    let stompClient = null;
+
+    function connect() {
+        const ticketId = document.getElementById("ticketId").value;
+
+        const socket = new SockJS("/ws");
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function (frame) {
+            console.log("Connected: " + frame);
+
+            // Subscribe to a specific ticket
+            stompClient.subscribe("/topic/tickets/" + ticketId, function (message) {
+                const msg = JSON.parse(message.body);
+                const li = document.createElement("li");
+                li.textContent = `${msg.sender.name}: ${msg.content} (${msg.sentAt})`;
+                document.getElementById("messages").appendChild(li);
+            });
+
+            // Subscribe to ticket status changes
+            stompClient.subscribe("/topic/tickets/" + ticketId + "/status", function (message) {
+                const update = JSON.parse(message.body);
+                const li = document.createElement("li");
+                li.textContent = `[STATUS UPDATED] Ticket #${update.id} → ${update.status}` +
+                 (update.agent ? ` (Assigned to: ${update.agent.name})` : '');
+                document.getElementById("messages").appendChild(li);
+            });
+
+
+            alert("Subscribed to ticket " + ticketId);
+        });
+    }
+</script>
+</body>
+</html>
