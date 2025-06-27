@@ -14,7 +14,7 @@ public interface TicketService {
     List<TicketResponse> getTicketsForCustomer(User customer);
     List<TicketResponse> getTicketsForAgent(User agent);
     TicketResponse getTicketById(Long id);
-    TicketResponse updateTicketStatusAndAssignee(Long ticketId, String status, Long assigneeId);
+//    TicketResponse updateTicketStatusAndAssignee(Long ticketId, String status, Long assigneeId);
     List<TicketResponse> getAssignedTickets();
 
     List<TicketResponse> getAllTickets();

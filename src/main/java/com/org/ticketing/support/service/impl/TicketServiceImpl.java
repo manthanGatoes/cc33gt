@@ -6,6 +6,9 @@ import com.org.ticketing.support.dto.request.StatusUpdateRequest;
 import com.org.ticketing.support.model.TicketStatus;
 import com.org.ticketing.support.repository.UserRepository;
 import com.org.ticketing.support.util.AuthUtil;
+import org.apache.juli.logging.Log;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import com.org.ticketing.support.dto.request.CreateTicketRequest;
 import com.org.ticketing.support.dto.response.TicketResponse;
@@ -18,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.AccessDeniedException;
+import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,25 +29,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TicketServiceImpl implements TicketService {
 
+    private static final Logger log = LoggerFactory.getLogger(TicketServiceImpl.class);
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
     private final TicketMapper ticketMapper;
     private final SimpMessagingTemplate messagingTemplate;
     private final AuthUtil authUtil;
 
-    @Override
-    public TicketResponse createTicket(CreateTicketRequest request, User customer) {
-        Ticket ticket = new Ticket();
-        ticket.setSubject(request.getSubject());
-        ticket.setDescription(request.getDescription());
-        ticket.setPriority(request.getPriority());
-        ticket.setCustomer(customer);
-
-        ticket = ticketRepository.save(ticket);
-        TicketResponse response = ticketMapper.toDto(ticket);
-        messagingTemplate.convertAndSend("/topic/tickets", response);
-        return response;
-    }
 
     @Override
     public List<TicketResponse> getTicketsForCustomer(User customer) {
@@ -69,31 +61,6 @@ public class TicketServiceImpl implements TicketService {
     }
 
     @Override
-    public TicketResponse updateTicketStatusAndAssignee(Long ticketId, String status, Long assigneeId) {
-        Ticket ticket = ticketRepository.findById(ticketId)
-                .orElseThrow(() -> new RuntimeException("Ticket not found"));
-
-        if (status != null) {
-            ticket.setStatus(TicketStatus.valueOf(status));
-        }
-
-        if (assigneeId != null) {
-            User assignee = new User();
-            assignee.setId(assigneeId); // In production, fetch from DB
-            assignee.setName("dummy-assignee");
-            ticket.setAgent(assignee);
-        }
-
-        ticket = ticketRepository.save(ticket);
-        TicketResponse response = ticketMapper.toDto(ticket);
-
-        // Notify clients
-        messagingTemplate.convertAndSend("/topic/tickets/" + ticket.getId() + "/status", response);
-
-        return response;
-    }
-
-    @Override
     public List<TicketResponse> getAssignedTickets() {
         User currentAgent = authUtil.getCurrentUser();
         List<Ticket> tickets = ticketRepository.findByAgent(currentAgent);
@@ -109,6 +76,46 @@ public class TicketServiceImpl implements TicketService {
                 .collect(Collectors.toList());
     }
 
+//    @Override
+//    public TicketResponse updateTicketStatusAndAssignee(Long ticketId, String status, Long assigneeId) {
+//        Ticket ticket = ticketRepository.findById(ticketId)
+//                .orElseThrow(() -> new RuntimeException("Ticket not found"));
+//
+//        if (status != null) {
+//            ticket.setStatus(TicketStatus.valueOf(status));
+//        }
+//
+//        if (assigneeId != null) {
+//            User assignee = new User();
+//            assignee.setId(assigneeId); // In production, fetch from DB
+//            assignee.setName("dummy-assignee");
+//            ticket.setAgent(assignee);
+//        }
+//
+//        ticket = ticketRepository.save(ticket);
+//        TicketResponse response = ticketMapper.toDto(ticket);
+//
+//        // Notify clients
+//        messagingTemplate.convertAndSend("/topic/tickets/" + ticket.getId() + "/status", response);
+//
+//        return response;
+//    }
+
+    @Override
+    public TicketResponse createTicket(CreateTicketRequest request, User customer) {
+        Ticket ticket = new Ticket();
+        ticket.setSubject(request.getSubject());
+        ticket.setDescription(request.getDescription());
+        ticket.setPriority(request.getPriority());
+        ticket.setCustomer(customer);
+
+        ticket = ticketRepository.save(ticket);
+        TicketResponse response = ticketMapper.toDto(ticket);
+        messagingTemplate.convertAndSend("/topic/tickets", response);
+        return response;
+    }
+
+
     @Override
     public TicketResponse updateAssignedTicketStatus(Long id, StatusUpdateRequest request) {
         User currentAgent = authUtil.getCurrentUser();
@@ -123,7 +130,9 @@ public class TicketServiceImpl implements TicketService {
         Ticket updated = ticketRepository.save(ticket);
 
         // 🔴 WebSocket: notify ticket status update
-        messagingTemplate.convertAndSend("/topic/ticket/status", ticketMapper.toDto(updated));
+
+        //! TODO : we can add specific ticket status update rather than updating the entire list
+        messagingTemplate.convertAndSend("/topic/tickets", ticketMapper.toDto(updated));
 
         return ticketMapper.toDto(updated);
     }
@@ -146,7 +155,7 @@ public class TicketServiceImpl implements TicketService {
         Ticket updated = ticketRepository.save(ticket);
 
         // 🔴 WebSocket broadcast
-        messagingTemplate.convertAndSend("/topic/ticket/status", ticketMapper.toDto(updated));
+        messagingTemplate.convertAndSend("/topic/agentTicket", ticketMapper.toDto(updated));
 
         return ticketMapper.toDto(updated);
     }
@@ -164,10 +173,11 @@ public class TicketServiceImpl implements TicketService {
 
         TicketResponse response = ticketMapper.toDto(updated);
 
+        log.info("Sending ticket assignment to: {}", agent.getEmail());
+
         // 🔴 WebSocket broadcast to the assigned agent
-        messagingTemplate.convertAndSendToUser(
-                String.valueOf(agent.getId()),
-                "/queue/ticket-assigned",
+        messagingTemplate.convertAndSend(
+                "/topic/agentTicket",
                 response
         );
 

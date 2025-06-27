@@ -13,8 +13,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.List;
-
+//@CrossOrigin(origins = "http://localhost:3000")
 @RestController
 @RequestMapping("/api/tickets")
 @RequiredArgsConstructor
@@ -33,15 +34,15 @@ public class TicketController {
     public List<TicketResponse> getMyTickets() {
         return ticketService.getTicketsForCustomer(authUtil.getCurrentUser());
     }
-    @PreAuthorize("hasRole('AGENT')")
-    @PutMapping("/{ticketId}/status")
-    public TicketResponse updateStatusOrAssignee(
-            @PathVariable Long ticketId,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) Long assigneeId
-    ) {
-        return ticketService.updateTicketStatusAndAssignee(ticketId, status, assigneeId);
-    }
+//    @PreAuthorize("hasRole('AGENT')")
+//    @PutMapping("/{ticketId}/status")
+//    public TicketResponse updateStatusOrAssignee(
+//            @PathVariable Long ticketId,
+//            @RequestParam(required = false) String status,
+//            @RequestParam(required = false) Long assigneeId
+//    ) {
+//        return ticketService.updateTicketStatusAndAssignee(ticketId, status, assigneeId);
+//    }
 
     @PreAuthorize("hasRole('AGENT')")
     @GetMapping("/assigned")
@@ -80,6 +81,10 @@ public class TicketController {
             @PathVariable Long id,
             @RequestBody AssignTicketRequest request) {
         return ResponseEntity.ok(ticketService.assignTicket(id, request));
+    }
+    @GetMapping("/whoami")
+    public String whoami(Principal principal) {
+        return principal.getName(); // What convertAndSendToUser must match
     }
 
 }
